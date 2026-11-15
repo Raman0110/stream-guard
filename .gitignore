@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# trained model artifacts are rebuilt with `make train`
+models/*
+!models/.gitkeep
