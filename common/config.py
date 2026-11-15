@@ -21,6 +21,9 @@ class Settings:
     num_sensors: int
     events_per_second: float
     random_seed: int
+    anomaly_rate: float
+    drift_per_reading: float
+    invalid_rate: float
 
     @property
     def database_url(self) -> str:
@@ -47,4 +50,7 @@ def load_settings() -> Settings:
         num_sensors=int(env.get("NUM_SENSORS", "5")),
         events_per_second=float(env.get("EVENTS_PER_SECOND", "10")),
         random_seed=int(env.get("RANDOM_SEED", "42")),
+        anomaly_rate=float(env.get("ANOMALY_RATE", "0")),
+        drift_per_reading=float(env.get("DRIFT_PER_READING", "0")),
+        invalid_rate=float(env.get("INVALID_RATE", "0")),
     )

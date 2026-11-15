@@ -8,7 +8,7 @@ down:
 	docker compose down
 
 test:
-	python -m pytest --cov=common --cov-report=term-missing
+	python -m pytest --cov=common --cov=producer --cov=consumer --cov-report=term-missing
 
 lint:
 	ruff check .
