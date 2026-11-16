@@ -4,11 +4,13 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+# FastAPI's Depends()/Query() in argument defaults is the framework's normal idiom
+flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["common", "producer", "consumer", "ml"]
+files = ["common", "producer", "consumer", "ml", "api"]
 
 [[tool.mypy.overrides]]
 module = ["confluent_kafka.*", "testcontainers.*", "sklearn.*", "joblib.*", "pandas.*"]

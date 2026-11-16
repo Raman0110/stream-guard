@@ -11,8 +11,8 @@ from sqlalchemy import func, select
 from testcontainers.kafka import RedpandaContainer
 from testcontainers.postgres import PostgresContainer
 
+from common import tables
 from common.config import Settings
-from consumer import db
 from consumer.main import ConsumerService
 from ml import train
 from ml.model import Scorer, train_model
@@ -54,7 +54,7 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
             postgres_host="", postgres_port=0, num_sensors=1, events_per_second=1,
             random_seed=1, anomaly_rate=0, drift_per_reading=0, invalid_rate=0,
         )  # fmt: skip
-        engine = db.connect(pg.get_connection_url())
+        engine = tables.connect(pg.get_connection_url())
         x, _ = train.make_dataset(2000, seed=1, anomaly_rate=0.0)  # tiny model, trained in-test
         service = ConsumerService(cfg, engine, Scorer(train_model(x, seed=1)))
         thread = threading.Thread(target=service.run)
@@ -70,9 +70,9 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
 
         def counts():
             with engine.connect() as c:
-                r = c.execute(select(func.count()).select_from(db.readings)).scalar_one()
-                d = c.execute(select(func.count()).select_from(db.dlq_events)).scalar_one()
-                p = c.execute(select(func.count()).select_from(db.predictions)).scalar_one()
+                r = c.execute(select(func.count()).select_from(tables.readings)).scalar_one()
+                d = c.execute(select(func.count()).select_from(tables.dlq_events)).scalar_one()
+                p = c.execute(select(func.count()).select_from(tables.predictions)).scalar_one()
             return r, d, p
 
         try:

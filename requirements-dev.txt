@@ -7,4 +7,6 @@ mypy==1.13.0
 -r producer/requirements.txt
 -r consumer/requirements.txt
 -r ml/requirements.txt
+-r api/requirements.txt
+httpx==0.27.2
 testcontainers[postgres,kafka]==4.10.0

@@ -18,6 +18,7 @@ from common.config import Settings, load_settings
 from common.kafka_utils import ensure_topics
 from common.logging_setup import setup_logging
 from common.schema import SensorReading
+from common.tables import connect
 from consumer import db
 from consumer.processing import parse_message
 from ml.features import RollingFeatures
@@ -122,7 +123,7 @@ def main() -> None:
     cfg = load_settings()
     scorer = Scorer(load_artifact(Path(cfg.model_path)))
     log.info("model loaded", extra={"model_version": scorer.version})
-    service = ConsumerService(cfg, db.connect(cfg.database_url), scorer)
+    service = ConsumerService(cfg, connect(cfg.database_url), scorer)
 
     def _stop(signum: int, frame: FrameType | None) -> None:
         service.stop()

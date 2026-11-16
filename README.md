@@ -1,7 +1,7 @@
 # StreamGuard
 
 Real-time anomaly detection pipeline for simulated IoT sensor data, with data-quality
-and model-drift monitoring. (Work in progress: milestone 3 of 7.)
+and model-drift monitoring. (Work in progress: milestone 4 of 7.)
 
 ## Quick start
 
@@ -22,6 +22,24 @@ The first `up` trains the Isolation Forest automatically (artifacts in `models/`
 
 ```bash
 docker compose exec postgres psql -U streamguard -c "select is_anomaly, count(*) from predictions group by 1"
+```
+
+## API
+
+Interactive docs (OpenAPI): http://localhost:8000/docs
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | database + model status |
+| `GET /readings/recent?sensor_id=&limit=` | latest readings with scores |
+| `GET /anomalies?since=` | flagged readings (default: last 24 h) |
+| `GET /metrics/pipeline?window_seconds=` | throughput, p50/p95 latency, DLQ count |
+| `GET /metrics/drift` | latest drift scores per feature (filled by milestone 5) |
+| `POST /predict` | score one reading on demand |
+
+```bash
+curl localhost:8000/metrics/pipeline
+curl -X POST localhost:8000/predict -H 'content-type: application/json'   -d '{"sensor_id":"sensor-1","temperature":95,"humidity":50,"vibration":0.5}'
 ```
 
 Retrain manually with `make train`, then `docker compose restart consumer`.

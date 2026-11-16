@@ -11,7 +11,7 @@ train:
 	python -m ml.train
 
 test:
-	python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov-report=term-missing
+	python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov=api --cov-report=term-missing
 
 lint:
 	ruff check .
