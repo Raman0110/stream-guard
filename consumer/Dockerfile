@@ -3,5 +3,6 @@ WORKDIR /app
 COPY consumer/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY common ./common
+COPY ml ./ml
 COPY consumer ./consumer
 ENTRYPOINT ["python", "-m", "consumer.main"]

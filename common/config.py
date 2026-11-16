@@ -24,6 +24,7 @@ class Settings:
     anomaly_rate: float
     drift_per_reading: float
     invalid_rate: float
+    model_path: str = "models/model.joblib"
 
     @property
     def database_url(self) -> str:
@@ -53,4 +54,5 @@ def load_settings() -> Settings:
         anomaly_rate=float(env.get("ANOMALY_RATE", "0")),
         drift_per_reading=float(env.get("DRIFT_PER_READING", "0")),
         invalid_rate=float(env.get("INVALID_RATE", "0")),
+        model_path=env.get("MODEL_PATH", "models/model.joblib"),
     )

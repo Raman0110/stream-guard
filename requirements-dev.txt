@@ -6,4 +6,5 @@ mypy==1.13.0
 # Service dependencies, so tests can import all services locally
 -r producer/requirements.txt
 -r consumer/requirements.txt
+-r ml/requirements.txt
 testcontainers[postgres,kafka]==4.10.0

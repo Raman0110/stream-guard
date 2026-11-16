@@ -14,6 +14,8 @@ from testcontainers.postgres import PostgresContainer
 from common.config import Settings
 from consumer import db
 from consumer.main import ConsumerService
+from ml import train
+from ml.model import Scorer, train_model
 
 pytestmark = pytest.mark.integration
 REDPANDA_IMAGE = "redpandadata/redpanda:v24.2.7"  # same as docker-compose.yml
@@ -53,7 +55,8 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
             random_seed=1, anomaly_rate=0, drift_per_reading=0, invalid_rate=0,
         )  # fmt: skip
         engine = db.connect(pg.get_connection_url())
-        service = ConsumerService(cfg, engine)
+        x, _ = train.make_dataset(2000, seed=1, anomaly_rate=0.0)  # tiny model, trained in-test
+        service = ConsumerService(cfg, engine, Scorer(train_model(x, seed=1)))
         thread = threading.Thread(target=service.run)
         thread.start()
 
@@ -69,11 +72,16 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
             with engine.connect() as c:
                 r = c.execute(select(func.count()).select_from(db.readings)).scalar_one()
                 d = c.execute(select(func.count()).select_from(db.dlq_events)).scalar_one()
-            return r, d
+                p = c.execute(select(func.count()).select_from(db.predictions)).scalar_one()
+            return r, d, p
 
         try:
-            assert wait_for(lambda: counts() == (3, 1))
+            assert wait_for(lambda: counts() == (3, 1, 3))
         finally:
             service.stop()
             thread.join(timeout=15)
-        assert counts() == (3, 1)  # 4 valid messages, 1 duplicate skipped
+        assert counts() == (
+            3,
+            1,
+            3,
+        )  # 4 valid messages, 1 duplicate skipped, 1 prediction per stored reading

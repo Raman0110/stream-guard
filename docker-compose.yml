@@ -35,6 +35,16 @@ services:
       timeout: 5s
       retries: 10
 
+  # One-shot job: trains the model if none exists yet, then exits.
+  trainer:
+    build:
+      context: .
+      dockerfile: ml/Dockerfile
+    command: ["--if-missing"]
+    volumes:
+      - ./models:/app/models
+      - ./reports:/app/reports
+
   consumer:
     build:
       context: .
@@ -47,9 +57,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      MODEL_PATH: /app/models/model.joblib
+    volumes:
+      - ./models:/app/models:ro
     depends_on:
       redpanda: {condition: service_healthy}
       postgres: {condition: service_healthy}
+      trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 
   producer:

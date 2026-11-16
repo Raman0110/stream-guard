@@ -1,5 +1,5 @@
 # Targets for later milestones (train, load-test, demo) are added as they are built.
-.PHONY: up down test lint
+.PHONY: up down train test lint
 
 up:
 	docker compose up -d --build
@@ -7,8 +7,11 @@ up:
 down:
 	docker compose down
 
+train:
+	python -m ml.train
+
 test:
-	python -m pytest --cov=common --cov=producer --cov=consumer --cov-report=term-missing
+	python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov-report=term-missing
 
 lint:
 	ruff check .
