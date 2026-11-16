@@ -80,6 +80,19 @@ services:
       trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    environment:
+      API_URL: http://api:8000
+      DASHBOARD_REFRESH_SECONDS: 2
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   producer:
     build:
       context: .

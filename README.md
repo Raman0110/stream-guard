@@ -1,7 +1,7 @@
 # StreamGuard
 
 Real-time anomaly detection pipeline for simulated IoT sensor data, with data-quality
-and model-drift monitoring. (Work in progress: milestone 4 of 7.)
+monitoring and a live operations dashboard. (Work in progress: milestone 5 of 7.)
 
 ## Quick start
 
@@ -10,6 +10,10 @@ cp .env.example .env     # then set POSTGRES_PASSWORD
 docker compose up -d --build   # Redpanda + PostgreSQL + trainer (one-shot) + producer + consumer
 docker compose exec postgres psql -U streamguard -c "select count(*) from readings"
 ```
+
+Open the live dashboard at http://localhost:8501 and API documentation at
+http://localhost:8000/docs. The dashboard shows live sensor traces, anomaly alerts,
+throughput, latency, dead-letter totals, model status, and an interactive prediction form.
 
 Inject anomalies and malformed messages (they land in `dlq_events` / topic `sensor-readings-dlq`):
 

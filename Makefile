@@ -1,8 +1,12 @@
 # Targets for later milestones (train, load-test, demo) are added as they are built.
-.PHONY: up down train test lint
+.PHONY: up down train test lint demo
 
 up:
 	docker compose up -d --build
+
+demo: up
+	@echo "Dashboard: http://localhost:8501"
+	@echo "API docs:  http://localhost:8000/docs"
 
 down:
 	docker compose down
