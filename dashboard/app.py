@@ -2,7 +2,7 @@
 
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import cast
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,7 +10,7 @@ import requests
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from dashboard.client import StreamGuardAPI
+from dashboard.client import DriftResponse, ReadingResponse, StreamGuardAPI
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 REFRESH_SECONDS = int(os.getenv("DASHBOARD_REFRESH_SECONDS", "2"))
@@ -47,14 +47,14 @@ st.markdown(
 api = StreamGuardAPI(API_URL)
 
 
-def format_latency(value: object) -> str:
+def format_latency(value: float | None) -> str:
     if value is None:
         return "—"
     seconds = float(value)
     return f"{seconds * 1000:.0f} ms" if seconds < 1 else f"{seconds:.2f} s"
 
 
-def readings_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+def readings_frame(rows: list[ReadingResponse]) -> pd.DataFrame:
     frame = pd.DataFrame(rows)
     if frame.empty:
         return frame
@@ -110,7 +110,7 @@ def telemetry_figure(frame: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def render_drift(drift: dict[str, Any]) -> None:
+def render_drift(drift: DriftResponse) -> None:
     status = drift["status"]
     if status == "no_data":
         st.info(
@@ -201,7 +201,10 @@ def live_dashboard() -> None:
         st.subheader("Live telemetry")
         chart_frame = frame
         if selected_sensor != "All sensors" and not frame.empty:
-            chart_frame = frame[frame["sensor_id"] == selected_sensor]
+            chart_frame = cast(
+                pd.DataFrame,
+                frame.loc[frame["sensor_id"] == selected_sensor],
+            )
         if chart_frame.empty:
             st.info("Waiting for sensor readings…")
         else:
@@ -209,18 +212,32 @@ def live_dashboard() -> None:
 
     with alert_col:
         st.subheader("Recent anomaly alerts")
-        alert_frame = frame[frame["is_anomaly"]].sort_values("ts", ascending=False)
+        alert_frame = cast(pd.DataFrame, frame.loc[frame["is_anomaly"]]).sort_values(
+            by="ts", ascending=False
+        )
         if alert_frame.empty:
             st.success("No anomalies in the displayed readings.")
         else:
             display = (
-                alert_frame[
-                    ["ts", "sensor_id", "anomaly_score", "temperature", "humidity", "vibration"]
-                ]
+                cast(
+                    pd.DataFrame,
+                    alert_frame.loc[
+                        :,
+                        [
+                            "ts",
+                            "sensor_id",
+                            "anomaly_score",
+                            "temperature",
+                            "humidity",
+                            "vibration",
+                        ],
+                    ],
+                )
                 .head(20)
                 .copy()
             )
-            display["ts"] = display["ts"].dt.strftime("%H:%M:%S")
+            timestamp_series = cast(pd.Series, display["ts"])
+            display["ts"] = timestamp_series.dt.strftime("%H:%M:%S")
             st.dataframe(display, hide_index=True, use_container_width=True, height=530)
 
     st.subheader("Distribution drift")
