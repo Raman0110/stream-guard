@@ -13,7 +13,7 @@ from testcontainers.postgres import PostgresContainer
 
 from common import tables
 from common.config import Settings
-from consumer.main import ConsumerService
+from consumer.service import ConsumerService
 from ml import train
 from ml.model import Scorer, train_model
 

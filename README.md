@@ -139,6 +139,46 @@ controlled data; they are not claims of production accuracy on real equipment.
 | FastAPI | Exposes readings, anomalies, metrics, health, and prediction endpoints |
 | Streamlit | Displays live telemetry and operational status |
 
+## Project structure
+
+Entry-point modules contain only configuration and process startup. Business logic is separated by
+responsibility:
+
+```text
+common/                  shared configuration, schemas, tables, retries, and logging
+producer/
+  main.py                process composition and signal handling
+  cli.py                 command-line configuration
+  service.py             timed generation and Kafka publication loop
+  payloads.py            JSON encoding and malformed-message injection
+  simulator.py           sensor distributions, anomalies, and gradual drift
+consumer/
+  main.py                process composition and model loading
+  service.py             Kafka batch orchestration and offset commits
+  processing.py          message validation
+  db.py                  transactional readings, predictions, and DLQ writes
+ml/
+  train.py               training dataset, evaluation, and artifact generation
+  features.py            per-sensor rolling feature calculation
+  model.py               Isolation Forest artifact and scoring interface
+monitoring/
+  main.py                worker scheduling and lifecycle
+  service.py             drift-check workflow
+  repository.py          recent-feature reads and metric persistence
+  drift.py               KS and PSI calculations
+api/
+  main.py                FastAPI application factory and router registration
+  dependencies.py        database and model dependencies
+  queries.py             shared SQL query builders
+  routers/               system, reading, metric, and prediction endpoints
+dashboard/
+  app.py                 page composition and live refresh
+  client.py              typed FastAPI client
+  presentation.py        charts, data preparation, and drift display
+  sidebar.py             controls and prediction form
+  theme.py               page configuration and styling
+```
+
 ## Processing guarantees
 
 The consumer uses at-least-once processing:

@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, func, select
 
 from common.tables import drift_metrics, metadata, readings
 from ml.features import FEATURES
-from monitoring.main import load_live_features, run_check
+from monitoring.repository import load_live_features
+from monitoring.service import run_check
 from producer.simulator import SensorSimulator
 
 
