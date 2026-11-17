@@ -18,7 +18,8 @@ jobs:
       - name: Type check
         run: mypy
       - name: Tests
-        run: python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov=api --cov-report=term-missing
-      - name: Validate docker-compose file
-        run: docker compose config --quiet
-      # Docker image builds are added once each service has a Dockerfile.
+        run: python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov=api --cov=monitoring --cov-report=term-missing
+      - name: Validate Docker Compose files
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.demo.yml config --quiet

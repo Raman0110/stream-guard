@@ -10,10 +10,10 @@ flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["common", "producer", "consumer", "ml", "api"]
+files = ["common", "producer", "consumer", "ml", "api", "monitoring"]
 
 [[tool.mypy.overrides]]
-module = ["confluent_kafka.*", "testcontainers.*", "sklearn.*", "joblib.*", "pandas.*"]
+module = ["confluent_kafka.*", "testcontainers.*", "sklearn.*", "joblib.*", "pandas.*", "scipy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

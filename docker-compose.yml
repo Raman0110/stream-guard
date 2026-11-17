@@ -80,6 +80,22 @@ services:
       trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 
+  monitoring:
+    build:
+      context: .
+      dockerfile: monitoring/Dockerfile
+    environment:
+      <<: *app-env
+      BASELINE_FEATURES_PATH: /app/models/baseline_features.csv
+      DRIFT_WINDOW_SIZE: ${DRIFT_WINDOW_SIZE:-1000}
+      DRIFT_CHECK_INTERVAL_SECONDS: ${DRIFT_CHECK_INTERVAL_SECONDS:-30}
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      trainer: {condition: service_completed_successfully}
+    restart: unless-stopped
+
   dashboard:
     build:
       context: .

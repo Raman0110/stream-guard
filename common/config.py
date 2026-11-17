@@ -25,6 +25,9 @@ class Settings:
     drift_per_reading: float
     invalid_rate: float
     model_path: str = "models/model.joblib"
+    baseline_features_path: str = "models/baseline_features.csv"
+    drift_window_size: int = 1000
+    drift_check_interval_seconds: float = 30.0
 
     @property
     def database_url(self) -> str:
@@ -55,4 +58,7 @@ def load_settings() -> Settings:
         drift_per_reading=float(env.get("DRIFT_PER_READING", "0")),
         invalid_rate=float(env.get("INVALID_RATE", "0")),
         model_path=env.get("MODEL_PATH", "models/model.joblib"),
+        baseline_features_path=env.get("BASELINE_FEATURES_PATH", "models/baseline_features.csv"),
+        drift_window_size=int(env.get("DRIFT_WINDOW_SIZE", "1000")),
+        drift_check_interval_seconds=float(env.get("DRIFT_CHECK_INTERVAL_SECONDS", "30")),
     )

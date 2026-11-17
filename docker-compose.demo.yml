@@ -1,0 +1,11 @@
+# Interview demo overrides: visible anomalies, malformed events, and gradual drift.
+services:
+  producer:
+    environment:
+      ANOMALY_RATE: 0.04
+      INVALID_RATE: 0.02
+      DRIFT_PER_READING: 0.001
+
+  monitoring:
+    environment:
+      DRIFT_CHECK_INTERVAL_SECONDS: 10
