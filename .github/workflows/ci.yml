@@ -22,4 +22,4 @@ jobs:
       - name: Validate Docker Compose files
         run: |
           docker compose config --quiet
-          docker compose -f docker-compose.yml -f docker-compose.demo.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.scenario.yml config --quiet

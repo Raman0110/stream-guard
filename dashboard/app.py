@@ -134,7 +134,7 @@ st.title("🛡️ StreamGuard Control Center")
 st.caption("Real-time IoT telemetry · streaming validation · ML anomaly detection")
 
 with st.sidebar:
-    st.header("Demo controls")
+    st.header("Controls")
     st.caption("The dashboard refreshes live from the FastAPI service.")
     selected_sensor = st.selectbox("Sensor", ["All sensors", *[f"sensor-{i}" for i in range(1, 6)]])
     history_size = st.slider("Readings displayed", 100, 1000, 500, 100)

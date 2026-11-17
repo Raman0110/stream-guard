@@ -1,4 +1,4 @@
-# Interview demo overrides: visible anomalies, malformed events, and gradual drift.
+# Fault-injection overrides: visible anomalies, malformed events, and gradual drift.
 services:
   producer:
     environment:

@@ -1,10 +1,10 @@
-.PHONY: up down train test lint demo
+.PHONY: up down train test lint scenario
 
 up:
 	docker compose up -d --build
 
-demo:
-	docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+scenario:
+	docker compose -f docker-compose.yml -f docker-compose.scenario.yml up -d --build
 	@echo "Dashboard: http://localhost:8501"
 	@echo "API docs:  http://localhost:8000/docs"
 
