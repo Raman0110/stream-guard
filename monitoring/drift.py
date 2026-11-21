@@ -58,16 +58,16 @@ def calculate_drift(baseline: FloatArray, current: FloatArray) -> list[DriftResu
     for index, feature in enumerate(FEATURES):
         reference = baseline[:, index]
         live = current[:, index]
-        ks = ks_2samp(reference, live)
+        # The result unpacks as (statistic, pvalue); unpacking keeps type checkers happy
+        # because scipy's return type for ks_2samp is only loosely typed.
+        ks_statistic, ks_pvalue = (float(value) for value in ks_2samp(reference, live))
         psi = population_stability_index(reference, live)
-        ks_drift = (
-            float(ks.statistic) >= KS_STAT_THRESHOLD and float(ks.pvalue) < KS_PVALUE_THRESHOLD
-        )
+        ks_drift = ks_statistic >= KS_STAT_THRESHOLD and ks_pvalue < KS_PVALUE_THRESHOLD
         results.append(
             DriftResult(
                 feature=feature,
-                ks_statistic=float(ks.statistic),
-                ks_pvalue=float(ks.pvalue),
+                ks_statistic=ks_statistic,
+                ks_pvalue=ks_pvalue,
                 psi=psi,
                 drift_detected=ks_drift or psi >= PSI_THRESHOLD,
             )
