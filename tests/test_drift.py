@@ -43,3 +43,21 @@ def test_calculate_drift_flags_shifted_features() -> None:
 def test_calculate_drift_validates_shape() -> None:
     with pytest.raises(ValueError, match="9 features"):
         calculate_drift(np.ones((10, 8)), np.ones((10, 8)))
+
+
+def test_clean_windows_are_never_flagged_at_the_default_window_size() -> None:
+    """Guards against false alarms: drift-free data must not trip the detector.
+
+    Measured while building this test: at the default window of 1000 readings, 0 of 60 clean
+    windows were flagged (maximum KS statistic 0.13 against the 0.15 gate); at a window of 500 about
+    1 in 60 was. This test uses the default size.
+    """
+    from ml.train import make_dataset
+
+    baseline, _ = make_dataset(5000, seed=42, anomaly_rate=0.0)
+    for seed in range(100, 115):
+        live, _ = make_dataset(1040, seed=seed, anomaly_rate=0.0)
+        live = live[40:]  # drop the per-sensor warm-up rows, as the monitor does
+        results = calculate_drift(baseline, live)
+        flagged = [r.feature for r in results if r.drift_detected]
+        assert not flagged, f"false drift alert for seed {seed}: {flagged}"

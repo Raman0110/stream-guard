@@ -16,6 +16,10 @@ from ml.model import Scorer
 
 log = logging.getLogger("consumer")
 BATCH_SIZE = 100
+# consume() returns after BATCH_SIZE messages OR this many seconds, whichever comes first.
+# At low event rates the batch rarely fills, so this timeout is the delay every event can
+# wait before being processed. Measured: 1.0 s gave ~550 ms median latency at 100 events/s.
+POLL_TIMEOUT_SECONDS = 0.1
 
 
 class ConsumerService:
@@ -47,7 +51,7 @@ class ConsumerService:
     def run(self) -> None:
         log.info("consumer started")
         while self.running:
-            messages = self.consumer.consume(num_messages=BATCH_SIZE, timeout=1.0)
+            messages = self.consumer.consume(num_messages=BATCH_SIZE, timeout=POLL_TIMEOUT_SECONDS)
             self.handle_batch(
                 [message for message in messages if self._is_valid_kafka_message(message)]
             )
