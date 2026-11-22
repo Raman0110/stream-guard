@@ -5,6 +5,20 @@ simulates measurements from industrial equipment, streams them through Redpanda 
 protocol, validates and scores them with a versioned Isolation Forest model, stores the results in
 PostgreSQL, monitors distribution drift, and exposes the system through FastAPI and Streamlit.
 
+## The problem
+
+Equipment sensors emit data continuously, and faults rarely announce themselves: a bearing starts to
+vibrate, a sensor freezes on one value, or conditions slowly shift away from what a model was
+trained on. A useful monitoring system has to answer three questions in near real time:
+
+1. **Is this reading unusual?** (anomaly detection)
+2. **Can the data be trusted?** (schema validation and a dead-letter queue)
+3. **Is the model still seeing the kind of data it was trained on?** (drift monitoring)
+
+StreamGuard answers all three in one small end-to-end system, on simulated data. It is a portfolio
+project that demonstrates a data-intensive streaming architecture, an ML model integrated into the
+stream, and software-quality practices: tests, CI, validation, structured logging, and monitoring.
+
 ## What the system analyzes
 
 The simulator represents sensors attached to equipment such as a motor, pump, or manufacturing
@@ -74,32 +88,23 @@ does not contaminate model processing.
 
 ## Data flow
 
-```text
-Sensor simulator
-      │
-      ▼
-Kafka producer ──► Redpanda topic ──► Consumer
-                                         │
-                         ┌───────────────┴────────────────┐
-                         │                                │
-                    valid reading                   invalid message
-                         │                                │
-                         ▼                                ▼
-              rolling feature calculation        dead-letter topic
-                         │                         + dlq_events table
-                         ▼
-              Isolation Forest scoring
-                         │
-                         ▼
-             PostgreSQL readings/predictions
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-        FastAPI service       Drift monitor
-              │                     │
-              └──────────┬──────────┘
-                         ▼
-                Streamlit dashboard
+```mermaid
+flowchart LR
+    SIM[Sensor simulator] --> P[Producer]
+    P -->|JSON events, keyed by sensor| K[(Redpanda topic<br/>sensor-readings)]
+    K --> C[Consumer]
+    C -->|invalid message| DLQ[(Dead-letter topic<br/>sensor-readings-dlq)]
+    C -->|valid reading| F[Rolling features<br/>per sensor]
+    F --> M[Isolation Forest<br/>scoring]
+    M -->|reading + prediction,<br/>one transaction| DB[(PostgreSQL)]
+    C -->|invalid payload + error| DB
+    T[Trainer, runs once] -->|model.joblib| C
+    T -->|model.joblib| A
+    T -->|baseline_features.csv| D[Drift monitor]
+    DB -->|recent readings| D
+    D -->|KS + PSI per feature| DB
+    DB --> A[FastAPI]
+    A -->|HTTP/JSON| UI[Streamlit dashboard]
 ```
 
 The simulator replaces physical hardware for local development. It can be replaced with a real
@@ -177,6 +182,12 @@ dashboard/
   presentation.py        charts, data preparation, and drift display
   sidebar.py             controls and prediction form
   theme.py               page configuration and styling
+scripts/
+  demo.py                guided demo: normal traffic, anomalies, then drift
+  load_test.py           throughput and end-to-end latency measurement
+tests/                   unit, API, and container-backed integration tests
+reports/                 model evaluation and load-test results
+docs/                    architecture and operational walkthrough
 ```
 
 ## Processing guarantees
@@ -213,6 +224,38 @@ Confirm that readings and predictions are being stored:
 docker compose exec postgres psql -U streamguard -c \
   "select is_anomaly, count(*) from predictions group by is_anomaly"
 ```
+
+If port 5432 is already used on your machine (for example by a local PostgreSQL), set
+`POSTGRES_PORT=55432` in `.env`. Only host-side tools use that port; the containers talk to each
+other directly and are unaffected.
+
+## Guided demo
+
+```bash
+make demo
+```
+
+The demo walks through three stages, restarting only the producer between them:
+
+1. **Normal traffic.** No faults; the drift monitor reports `ok`.
+2. **Anomalies and malformed messages.** Spikes and stuck values reach the model and are flagged;
+   malformed messages land in the dead-letter queue.
+3. **Gradual drift.** Sensor means creep upward until the drift monitor flags the shifted features.
+
+Watch the dashboard while it runs. Afterwards, `make demo-reset` returns the producer to normal
+traffic. Without `make`, run `python -m scripts.demo` directly.
+
+## Load test
+
+```bash
+make load-test
+```
+
+Publishes tagged test events at a fixed rate and then unthrottled, waits until every event is
+stored, and reports throughput and end-to-end latency percentiles (written to
+[reports/load_test_steady.md](reports/load_test_steady.md) and
+[reports/load_test_peak.md](reports/load_test_peak.md)). Test rows are deleted afterwards. Stop the
+normal producer first (`docker compose stop producer`) for a clean measurement.
 
 ## Configuring generated conditions
 
@@ -251,6 +294,14 @@ The dashboard refreshes automatically and displays:
 - KS/PSI drift status for every feature;
 - an interactive form for scoring a custom reading.
 
+### Screenshots
+
+_Placeholders: run `make demo`, then add captures to `docs/images/` and link them here._
+
+| Normal traffic | Drift detected |
+|---|---|
+| `docs/images/dashboard-normal.png` | `docs/images/dashboard-drift.png` |
+
 ## API
 
 | Endpoint | Purpose |
@@ -281,6 +332,90 @@ baseline. A feature is marked as drifted when either:
 
 Results are written to the `drift_metrics` table and served through `/metrics/drift`.
 
+## Results
+
+All numbers come from a single development machine (Windows 11, 12 logical CPUs) running the whole
+stack in Docker Compose, using simulated data. They show that the pipeline behaves as designed; they
+are not benchmarks of real equipment or of production hardware.
+
+**Anomaly detection** (10,000 held-out readings, 5% injected anomalies; details in
+[reports/evaluation.md](reports/evaluation.md)):
+
+| Precision | Recall | F1 |
+|---:|---:|---:|
+| 0.594 | 0.519 | 0.554 |
+
+**Pipeline throughput and latency** (latency = event timestamp until its prediction is stored):
+
+| Run | Events | Lost | Throughput | Latency p50 / p95 |
+|---|---:|---:|---:|---:|
+| Steady, 100 events/sec | 3,000 | 0 | 98 events/sec | 547 ms / 1,000 ms |
+| Unthrottled (peak) | 10,000 | 0 | 1,271 events/sec | 3.5 s / 6.8 s* |
+
+\* In the unthrottled run events queue up in Kafka faster than they are processed, so these
+latencies measure the backlog, not normal operation. The steady-run figures are the representative
+ones.
+
+**Drift detection:** in `make demo`, drift injected at 0.3 degrees/second was flagged by the monitor
+about 20 seconds after it started (on `temperature` and `temperature_mean`), with the monitor
+configured for a 500-reading window checked every 10 seconds.
+
+## Design decisions and trade-offs
+
+**Why Kafka (via Redpanda).** A durable, replayable log decouples the producer from the consumer:
+the consumer can restart or fall behind without losing events, and keying messages by `sensor_id`
+keeps each sensor's readings in order. Redpanda speaks the standard Kafka protocol from a single
+container, which keeps `docker compose up` light; the services use the standard `confluent-kafka`
+client, so nothing in the application code is Redpanda-specific. The trade-off is more moving parts
+than polling a database, and this setup uses a single partition and a single consumer.
+
+**Why an Isolation Forest.** It is unsupervised, so it trains on clean data alone and needs no
+labelled faults. Scoring is fast and vectorised per batch, it needs no feature scaling, and it is
+easy to explain. The trade-offs: it has no notion of time except through the rolling features, the
+99th-percentile threshold fixes the false-alarm rate at roughly 1% on clean data by construction,
+and recall is limited (0.52 here). The first reading of a stuck-value episode is an exact copy of a
+normal reading, so it cannot be detected. Other approaches (simple z-score limits, autoencoders)
+were not benchmarked in this project.
+
+**At-least-once delivery and duplicates.** Kafka auto-commit is off. The consumer writes a batch to
+PostgreSQL and only then commits its offsets, so a crash can cause redelivery but never loss. A
+unique `(sensor_id, ts)` constraint with `ON CONFLICT DO NOTHING` turns redelivered readings into
+no-ops, and a reading and its prediction are written in one transaction. Exactly-once semantics
+would need Kafka transactions and were out of scope.
+
+**One PostgreSQL database for everything.** Readings, predictions, dead letters, and drift metrics
+live in one store, so the API can use plain SQL (including percentile latency) and the services
+share one source of truth. It is not a time-series database, which is fine at the load measured
+above. The API and dashboard read from the database rather than from the consumer, so each service
+can be restarted independently.
+
+**Drift decision rule.** A feature is flagged if PSI is at least 0.20, or the KS distance is at
+least 0.15 and its p-value is below 0.01. A p-value alone is unreliable here: in an experiment on
+drift-free simulated data, the overlapping rolling-window features produced KS p-values as small as
+1e-5, because consecutive values are correlated and the test assumes independence. The effect-size
+gate prevents those false alarms. The thresholds were chosen on simulator data and would need
+re-tuning for real sensors.
+
+**Batching versus latency.** The consumer fetches up to 100 messages or waits up to one second.
+That keeps database writes and model scoring efficient, but at low rates it adds up to a second of
+waiting: the roughly 0.5 s median latency in the steady run is mostly this wait, not computation. A
+shorter timeout would trade some efficiency for lower latency.
+
+### Known limitations
+
+- **Rolling windows live in memory.** After a consumer restart, each sensor's first few readings
+  are scored on a partial window.
+- **Dead letters can be duplicated.** If the consumer crashes mid-batch, a malformed message may be
+  written to the dead-letter topic and table twice; only valid readings are de-duplicated.
+- **Single partition, single consumer.** Scaling out would need more partitions and a shared or
+  rebuilt rolling-feature state.
+- **No migrations, authentication, or external secrets.** Tables are created at startup and
+  credentials come from environment variables; this is a local portfolio system.
+- **Synthetic data only.** Evaluation, thresholds, and drift behaviour are measured on simulator
+  output; real equipment would need re-validation.
+- **Load results are single-machine.** Throughput and latency depend on the host and on Docker
+  Desktop, and the consumer has not been tuned beyond its defaults.
+
 ## Development and testing
 
 ```bash
@@ -290,6 +425,9 @@ pip install -r requirements-dev.txt
 make lint
 make test
 ```
+
+Other targets: `make up` / `make down` (stack), `make train` (retrain the model),
+`make demo` / `make demo-reset` (guided demo), `make load-test` (latency and throughput).
 
 The test suite covers simulation, schemas, rolling features, model training and scoring, consumer
 processing, duplicate handling, dead-letter routing, API behavior, drift statistics, dashboard API

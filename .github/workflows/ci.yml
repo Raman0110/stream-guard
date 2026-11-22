@@ -18,8 +18,17 @@ jobs:
       - name: Type check
         run: mypy
       - name: Tests
-        run: python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov=api --cov=monitoring --cov-report=term-missing
+        run: python -m pytest --cov=common --cov=producer --cov=consumer --cov=ml --cov=api --cov=monitoring --cov=scripts --cov-report=term-missing
       - name: Validate Docker Compose files
         run: |
           docker compose config --quiet
           docker compose -f docker-compose.yml -f docker-compose.scenario.yml config --quiet
+
+  docker-images:
+    # Builds every service image (trainer, consumer, producer, api, monitoring, dashboard)
+    # to catch broken Dockerfiles or missing dependencies before they reach `docker compose up`.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images
+        run: docker compose build

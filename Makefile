@@ -1,4 +1,4 @@
-.PHONY: up down train test lint scenario load-test
+.PHONY: up down train test lint scenario demo demo-reset load-test
 
 up:
 	docker compose up -d --build
@@ -13,6 +13,14 @@ down:
 
 train:
 	python -m ml.train
+
+# Guided demo: normal traffic -> anomalies -> gradual drift (drift alert shows on the dashboard).
+demo:
+	python -m scripts.demo
+
+# Back to normal producer settings after the demo.
+demo-reset:
+	docker compose up -d --force-recreate producer
 
 # Needs the stack running (`make up`). Two runs: steady load for latency, unthrottled for peak throughput.
 load-test:
