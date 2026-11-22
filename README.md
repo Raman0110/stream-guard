@@ -345,16 +345,40 @@ are not benchmarks of real equipment or of production hardware.
 |---:|---:|---:|
 | 0.594 | 0.519 | 0.554 |
 
+Compared with simple z-score detectors calibrated to the same 1% false-alarm rate on clean data:
+
+| Method | Precision | Recall | F1 |
+|---|---:|---:|---:|
+| Isolation Forest (9 features) | 0.594 | 0.519 | 0.554 |
+| Z-score, 3 raw values | 0.785 | 0.202 | 0.321 |
+| Z-score, 9 features | 0.338 | 0.375 | 0.355 |
+
+Recall by anomaly type (Isolation Forest / z-score on 9 features):
+
+| Anomaly type | Readings | Isolation Forest | Z-score |
+|---|---:|---:|---:|
+| Spike | 253 | 95% | 100% |
+| Stuck sensor, repeated readings | 940 | 51% | 28% |
+| Stuck sensor, first reading | 235 | 11% | 9% |
+
+The forest's advantage is on stuck sensors; z-scores catch every spike. Repeated stuck readings are
+two thirds of all labelled anomalies, which is why overall recall is only about 0.52. The first
+reading of a stuck episode is an exact copy of a normal reading, so neither method can find it.
+
 **Pipeline throughput and latency** (latency = event timestamp until its prediction is stored):
 
 | Run | Events | Lost | Throughput | Latency p50 / p95 |
 |---|---:|---:|---:|---:|
-| Steady, 100 events/sec | 3,000 | 0 | 98 events/sec | 547 ms / 1,000 ms |
-| Unthrottled (peak) | 10,000 | 0 | 1,271 events/sec | 3.5 s / 6.8 s* |
+| Steady, 100 events/sec | 3,000 | 0 | 100 events/sec | 81 ms / 137 ms |
+| Unthrottled (peak) | 10,000 | 0 | about 2,500-3,000 events/sec | 1.5-2.1 s / 2.8 s* |
 
 \* In the unthrottled run events queue up in Kafka faster than they are processed, so these
-latencies measure the backlog, not normal operation. The steady-run figures are the representative
-ones.
+latencies measure the backlog, not normal operation (p50 range over four runs; p95 from the run
+saved in `reports/load_test_peak.md`). The steady-run figures are the representative ones.
+
+Shortening the consumer's batch wait from 1 s to 0.1 s (see below) cut the steady-run latency from
+a median of about 530 ms (p95 about 980 ms) to 81 ms. Peak throughput was unchanged by it: three runs
+each gave 2,539-2,965 events/sec before and 2,537-3,007 after.
 
 **Drift detection:** in `make demo`, drift injected at 0.3 degrees/second was flagged by the monitor
 about 20 seconds after it started (on `temperature` and `temperature_mean`), with the monitor
@@ -374,8 +398,10 @@ labelled faults. Scoring is fast and vectorised per batch, it needs no feature s
 easy to explain. The trade-offs: it has no notion of time except through the rolling features, the
 99th-percentile threshold fixes the false-alarm rate at roughly 1% on clean data by construction,
 and recall is limited (0.52 here). The first reading of a stuck-value episode is an exact copy of a
-normal reading, so it cannot be detected. Other approaches (simple z-score limits, autoencoders)
-were not benchmarked in this project.
+normal reading, so it cannot be detected. Against z-score detectors calibrated to the same 1%
+false-alarm rate, the forest scored an F1 of 0.55 versus 0.32 (raw values) and 0.36 (all nine
+features): z-scores catch every spike but find far fewer stuck-sensor readings. Autoencoders and
+sequence models were not tried.
 
 **At-least-once delivery and duplicates.** Kafka auto-commit is off. The consumer writes a batch to
 PostgreSQL and only then commits its offsets, so a crash can cause redelivery but never loss. A
@@ -393,13 +419,17 @@ can be restarted independently.
 least 0.15 and its p-value is below 0.01. A p-value alone is unreliable here: in an experiment on
 drift-free simulated data, the overlapping rolling-window features produced KS p-values as small as
 1e-5, because consecutive values are correlated and the test assumes independence. The effect-size
-gate prevents those false alarms. The thresholds were chosen on simulator data and would need
-re-tuning for real sensors.
+gate prevents those false alarms. In simulation, clean windows were never flagged at
+the default 1000-reading window (0 of 60) but 1 of 60 was at a 500-reading window, so a shorter
+window detects drift sooner at the cost of an occasional false alarm. The thresholds were chosen on
+simulator data and would need re-tuning for real sensors.
 
-**Batching versus latency.** The consumer fetches up to 100 messages or waits up to one second.
-That keeps database writes and model scoring efficient, but at low rates it adds up to a second of
-waiting: the roughly 0.5 s median latency in the steady run is mostly this wait, not computation. A
-shorter timeout would trade some efficiency for lower latency.
+**Batching versus latency.** The consumer fetches up to 100 messages or waits up to 0.1 s,
+whichever comes first (`POLL_TIMEOUT_SECONDS`). Batching keeps database writes and model scoring
+efficient. The wait was originally 1 s, which dominated latency at low rates: an event waited on
+average half the timeout for its batch to close, giving a median of about 0.5 s. Shortening it cut
+the steady-run median to 81 ms without changing peak throughput (measured by running both settings
+back to back). The trade-off is more, smaller database transactions at low event rates.
 
 ### Known limitations
 
@@ -414,7 +444,9 @@ shorter timeout would trade some efficiency for lower latency.
 - **Synthetic data only.** Evaluation, thresholds, and drift behaviour are measured on simulator
   output; real equipment would need re-validation.
 - **Load results are single-machine.** Throughput and latency depend on the host and on Docker
-  Desktop, and the consumer has not been tuned beyond its defaults.
+  Desktop; peak throughput varied between about 2,500 and 3,000 events/sec across runs.
+- **The demo's short drift window can raise a false alarm.** About 1 in 60 clean checks at a
+  500-reading window in simulation; the default 1000-reading window showed none.
 
 ## Development and testing
 

@@ -46,3 +46,24 @@ def test_drift_shifts_mean():
 def test_round_robin_sensors():
     ids = {r.sensor_id for r in run(SensorSimulator(num_sensors=3), 9)}
     assert ids == {"sensor-1", "sensor-2", "sensor-3"}
+
+
+def test_anomaly_kind_is_recorded_for_every_anomaly():
+    readings = run(SensorSimulator(anomaly_rate=0.2, seed=3), 2000)
+    for r in readings:
+        assert (r.anomaly_kind is not None) == r.is_anomaly
+    kinds = {r.anomaly_kind for r in readings if r.is_anomaly}
+    assert kinds == {"spike", "stuck_start", "stuck_repeat"}
+
+
+def test_stuck_repeat_readings_equal_the_previous_values():
+    sim = SensorSimulator(num_sensors=1, seed=3, anomaly_rate=0.3)
+    previous = None
+    seen_repeat = False
+    for _ in range(3000):
+        r = sim.next_reading(T0)
+        if r.anomaly_kind in ("stuck_start", "stuck_repeat"):
+            assert (r.temperature, r.humidity, r.vibration) == previous
+            seen_repeat = seen_repeat or r.anomaly_kind == "stuck_repeat"
+        previous = (r.temperature, r.humidity, r.vibration)
+    assert seen_repeat

@@ -24,6 +24,9 @@ class SimulatedReading:
     humidity: float
     vibration: float
     is_anomaly: bool  # ground-truth label: for evaluation only, NOT sent to Kafka
+    # Anomaly type (also evaluation-only): "spike", "stuck_start" (first reading of a stuck
+    # episode, an exact copy of a normal reading) or "stuck_repeat"; None for normal readings.
+    anomaly_kind: str | None = None
 
     def to_message(self) -> dict[str, object]:
         """The JSON payload that goes on the topic (no label!)."""
@@ -60,11 +63,13 @@ class SensorSimulator:
         self.drift += self.drift_per_reading
 
         is_anomaly = False
+        kind: str | None = None
         if self._stuck_left.get(sensor_id, 0) > 0:
             # Continue an ongoing stuck-value anomaly: repeat the last values exactly.
             self._stuck_left[sensor_id] -= 1
             temp, hum, vib = self._last[sensor_id]
             is_anomaly = True
+            kind = "stuck_repeat"
         else:
             temp = self.rng.normal(TEMP_MEAN + self.drift, TEMP_STD)
             hum = self.rng.normal(HUM_MEAN + self.drift, HUM_STD)
@@ -74,15 +79,17 @@ class SensorSimulator:
                 if self.rng.random() < 0.5 and sensor_id in self._last:
                     self._stuck_left[sensor_id] = STUCK_LENGTH - 1
                     temp, hum, vib = self._last[sensor_id]
+                    kind = "stuck_start"
                 else:
                     temp, hum, vib = self._spike(temp, hum, vib)
+                    kind = "spike"
 
         # Clamp to the schema's valid ranges so anomalies are not rejected as invalid.
         temp = float(np.clip(temp, -50, 150))
         hum = float(np.clip(hum, 0, 100))
         vib = float(np.clip(vib, 0, 100))
         self._last[sensor_id] = (temp, hum, vib)
-        return SimulatedReading(sensor_id, timestamp, temp, hum, vib, is_anomaly)
+        return SimulatedReading(sensor_id, timestamp, temp, hum, vib, is_anomaly, kind)
 
     def _spike(self, temp: float, hum: float, vib: float) -> tuple[float, float, float]:
         """Push one randomly chosen feature far from normal (8-12 standard deviations)."""
