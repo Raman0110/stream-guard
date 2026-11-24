@@ -8,25 +8,47 @@ from dashboard.client import StreamGuardAPI
 
 def render_sidebar(api: StreamGuardAPI) -> tuple[str, int]:
     with st.sidebar:
-        st.header("Controls")
-        st.caption("The dashboard refreshes live from the FastAPI service.")
-        selected_sensor = st.selectbox(
-            "Sensor", ["All sensors", *[f"sensor-{index}" for index in range(1, 6)]]
+        st.markdown(
+            """
+            <div class="sg-brand">
+                <div class="sg-mark">SG</div>
+                <div>
+                    <div class="sg-brand-name">StreamGuard</div>
+                    <div class="sg-brand-meta">Sensor operations</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        history_size = st.slider("Readings displayed", 100, 1000, 500, 100)
+        st.subheader("View")
+        selected_sensor = st.selectbox(
+            "Sensor",
+            [*[f"sensor-{index}" for index in range(1, 6)], "All sensors"],
+            help="Choose one sensor for a focused timeline or compare all sensors.",
+        )
+        history_size = st.slider(
+            "History window",
+            100,
+            1000,
+            500,
+            100,
+            help="Number of recent readings requested from the API.",
+        )
+        st.caption(f"Showing up to {history_size:,} recent readings · auto-refresh enabled")
         st.divider()
         _render_prediction_form(api)
     return selected_sensor, history_size
 
 
 def _render_prediction_form(api: StreamGuardAPI) -> None:
-    st.subheader("Score a reading")
-    with st.form("prediction"):
+    st.subheader("Manual evaluation")
+    st.caption("Check one reading against the active model and recent sensor history.")
+    with st.form("prediction", border=False):
         sensor_id = st.text_input("Sensor ID", "sensor-1")
         temperature = st.number_input("Temperature (°C)", -50.0, 150.0, 25.0, 0.5)
         humidity = st.number_input("Humidity (%)", 0.0, 100.0, 50.0, 1.0)
         vibration = st.number_input("Vibration (mm/s)", 0.0, 100.0, 0.5, 0.1)
-        submitted = st.form_submit_button("Run prediction", use_container_width=True)
+        submitted = st.form_submit_button("Evaluate reading", use_container_width=True)
     if not submitted:
         return
 
@@ -40,9 +62,9 @@ def _render_prediction_form(api: StreamGuardAPI) -> None:
             }
         )
         if result["is_anomaly"]:
-            st.error(f"Anomaly detected · score {result['anomaly_score']:.3f}")
+            st.error(f"Anomalous pattern · score {result['anomaly_score']:.3f}")
         else:
-            st.success(f"Normal reading · score {result['anomaly_score']:.3f}")
+            st.success(f"Within baseline · score {result['anomaly_score']:.3f}")
         st.caption(
             f"Threshold {result['threshold']:.3f} · model {result['model_version']} · "
             f"history used {result['history_readings_used']}"
