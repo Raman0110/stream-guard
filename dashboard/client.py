@@ -68,16 +68,12 @@ class StreamGuardAPI:
         self.timeout = timeout
 
     def get(self, path: str, **params: QueryValue) -> Any:
-        response = requests.get(
-            f"{self.base_url}{path}", params=params, timeout=self.timeout
-        )
+        response = requests.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
     def post(self, path: str, payload: Mapping[str, JsonValue]) -> Any:
-        response = requests.post(
-            f"{self.base_url}{path}", json=payload, timeout=self.timeout
-        )
+        response = requests.post(f"{self.base_url}{path}", json=payload, timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
