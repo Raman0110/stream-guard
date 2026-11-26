@@ -4,6 +4,7 @@
 
 ```mermaid
 flowchart LR
+    G[Alembic migration] -->|schema ready| DB[(PostgreSQL)]
     P[Sensor producer] -->|JSON events| K[(Redpanda / Kafka)]
     K -->|sensor-readings| C[Consumer]
     C -->|invalid payload| D[sensor-readings-dlq]
@@ -41,8 +42,20 @@ from the 99th percentile of clean training scores are flagged.
 
 Kafka auto-commit is disabled. The consumer writes a batch to PostgreSQL before synchronously
 committing its offsets, giving at-least-once delivery. A unique `(sensor_id, ts)` constraint and
-`ON CONFLICT DO NOTHING` make redelivery idempotent. Each reading and its prediction are written in
-one transaction, so a stored reading cannot be left without its corresponding prediction.
+duplicate checks before feature calculation make redelivery idempotent. Each reading and its
+prediction are written in one transaction, so a stored reading cannot be left without its
+corresponding prediction.
+
+The rolling-feature state is reconstructed from the latest stored readings when the consumer
+starts. During a batch, features are calculated against a candidate copy of that state. The live
+state is replaced only after the database transaction succeeds, so a retry cannot accidentally
+advance the rolling window twice.
+
+Rejected payloads use a transactional outbox. The database transaction stores both the DLQ audit
+row and an unpublished outbox event before the input offset is committed. A publisher delivers
+pending rows to Kafka and records the outcome, retaining failures for a later retry. This prevents
+Kafka downtime from losing a rejected event. Delivery to the Kafka DLQ remains at least once, so
+downstream recovery workers should de-duplicate on the outbox event key.
 
 ## Drift monitoring
 
@@ -59,8 +72,11 @@ dashboard displays the overall state and detailed statistics.
 | `readings` | Valid sensor values plus event and ingestion timestamps |
 | `predictions` | Score, anomaly flag, model version, and scoring time per reading |
 | `dlq_events` | Rejected raw payloads and validation errors |
+| `outbox_events` | Durable Kafka publications, attempts, and last failure |
 | `drift_metrics` | Timestamped KS, PSI, decision, and live window size per feature |
 
-For this local portfolio system, SQLAlchemy creates tables idempotently at startup. A production
-deployment would replace that with versioned migrations, external secrets, authentication,
-multi-partition Kafka, and durable restoration of the consumer's rolling feature state.
+Alembic owns the schema. Compose runs the one-shot `migrate` service before database-dependent
+workers, while application startup only verifies connectivity. Operational indexes support recent
+reading, anomaly, DLQ, outbox, and latest-drift queries. Shared pool settings control maximum
+connections, checkout timeouts, and connection recycling. Remaining deployment work includes
+external secrets, authentication, backup and retention policies, and multi-partition Kafka.

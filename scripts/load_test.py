@@ -28,10 +28,10 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 from confluent_kafka import KafkaException, Producer
-from sqlalchemy import Engine, create_engine, delete, func, select, text
+from sqlalchemy import Engine, delete, func, select, text
 
 from common.config import load_settings
-from common.tables import predictions, readings
+from common.tables import connect_from_settings, predictions, readings
 from producer.simulator import SensorSimulator
 
 SENSOR_PREFIX = "load-"
@@ -253,7 +253,7 @@ def main() -> int:
 
     load_dotenv(Path(".env"))
     cfg = load_settings()
-    engine = create_engine(cfg.database_url, pool_pre_ping=True)
+    engine = connect_from_settings(cfg)
     producer = Producer({"bootstrap.servers": cfg.kafka_bootstrap_servers, "linger.ms": 5})
 
     try:

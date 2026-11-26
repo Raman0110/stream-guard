@@ -55,6 +55,7 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
             random_seed=1, anomaly_rate=0, drift_per_reading=0, invalid_rate=0,
         )  # fmt: skip
         engine = tables.connect(pg.get_connection_url())
+        tables.metadata.create_all(engine)
         x, _ = train.make_dataset(2000, seed=1, anomaly_rate=0.0)  # tiny model, trained in-test
         service = ConsumerService(cfg, engine, Scorer(train_model(x, seed=1)))
         thread = threading.Thread(target=service.run)

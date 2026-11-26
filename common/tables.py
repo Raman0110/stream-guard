@@ -1,7 +1,4 @@
-"""Database table definitions and connection helper, shared by all services.
-
-Tables are created with `metadata.create_all` (idempotent); no migration tool is used.
-"""
+"""Database table definitions and connection helper, shared by all services."""
 
 from sqlalchemy import (
     Boolean,
@@ -10,6 +7,7 @@ from sqlalchemy import (
     Engine,
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     MetaData,
@@ -22,6 +20,7 @@ from sqlalchemy import (
     text,
 )
 
+from common.config import Settings
 from common.retry import retry
 
 metadata = MetaData()
@@ -51,6 +50,7 @@ predictions = Table(
     # scored_at - readings.ts = end-to-end latency (used by the pipeline metrics later)
     Column("scored_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
 )
+Index("ix_predictions_is_anomaly", predictions.c.is_anomaly)
 
 dlq_events = Table(
     "dlq_events",
@@ -60,6 +60,7 @@ dlq_events = Table(
     Column("raw_payload", Text, nullable=False),
     Column("error", Text, nullable=False),
 )
+Index("ix_dlq_events_received_at", dlq_events.c.received_at)
 
 
 # Durable messages waiting to be published to Kafka. Writing this row in the same transaction as
@@ -72,10 +73,11 @@ outbox_events = Table(
     Column("message_key", LargeBinary, nullable=True),
     Column("payload", LargeBinary, nullable=False),
     Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
-    Column("published_at", DateTime(timezone=True), nullable=True, index=True),
+    Column("published_at", DateTime(timezone=True), nullable=True),
     Column("attempts", Integer, nullable=False, server_default="0"),
     Column("last_error", Text, nullable=True),
 )
+Index("ix_outbox_events_published_at", outbox_events.c.published_at)
 
 
 # One row per (drift check, feature). Written by the monitoring job, read by the API.
@@ -91,16 +93,45 @@ drift_metrics = Table(
     Column("drift_detected", Boolean, nullable=False),
     Column("window_size", Integer, nullable=False),  # live readings compared
 )
+Index("ix_drift_metrics_feature_computed_at", drift_metrics.c.feature, drift_metrics.c.computed_at)
+Index("ix_readings_ingested_at", readings.c.ingested_at)
 
 
-def connect(url: str) -> Engine:
-    """Create an engine and create tables, retrying while Postgres starts up."""
-    engine = create_engine(url, pool_pre_ping=True)
+def connect(
+    url: str,
+    *,
+    pool_size: int = 5,
+    max_overflow: int = 10,
+    pool_timeout_seconds: float = 30.0,
+    pool_recycle_seconds: int = 1800,
+) -> Engine:
+    """Create an engine and verify connectivity, retrying while Postgres starts up.
+
+    Schema changes are owned by Alembic and run before application services start.
+    """
+    engine = create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout_seconds,
+        pool_recycle=pool_recycle_seconds,
+    )
 
     def _init() -> None:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        metadata.create_all(engine)  # simple schema management: no migrations for this project
 
     retry(_init, what="database connect")
     return engine
+
+
+def connect_from_settings(settings: Settings) -> Engine:
+    """Create an engine using the shared database and connection-pool configuration."""
+    return connect(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout_seconds=settings.db_pool_timeout_seconds,
+        pool_recycle_seconds=settings.db_pool_recycle_seconds,
+    )

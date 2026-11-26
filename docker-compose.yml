@@ -1,4 +1,16 @@
-# Infrastructure for StreamGuard. Application services are added in later milestones.
+x-app-env: &app-env
+  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+  DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+  DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-30}
+  DB_POOL_RECYCLE_SECONDS: ${DB_POOL_RECYCLE_SECONDS:-1800}
+  MODEL_PATH: /app/models/model.joblib
+
 services:
   redpanda:
     image: redpandadata/redpanda:v24.2.7
@@ -35,6 +47,16 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
   # One-shot job: trains the model if none exists yet, then exits.
   trainer:
     build:
@@ -49,20 +71,13 @@ services:
     build:
       context: .
       dockerfile: consumer/Dockerfile
-    environment: &app-env
-      # Inside the compose network, services reach each other by service name.
-      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      MODEL_PATH: /app/models/model.joblib
+    environment: *app-env
     volumes:
       - ./models:/app/models:ro
     depends_on:
       redpanda: {condition: service_healthy}
       postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
       trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 
@@ -77,6 +92,7 @@ services:
       - ./models:/app/models:ro
     depends_on:
       postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
       trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 
@@ -93,6 +109,7 @@ services:
       - ./models:/app/models:ro
     depends_on:
       postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
       trainer: {condition: service_completed_successfully}
     restart: unless-stopped
 

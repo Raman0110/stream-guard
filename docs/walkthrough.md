@@ -39,9 +39,10 @@ Schema-invalid data goes to the DLQ, while valid but unusual data reaches the ML
 
 ### 2:00-2:45 - Reliability
 
-Open `consumer/main.py`. Kafka auto-commit is disabled and offsets are committed only after database
-writes. The `(sensor_id, timestamp)` uniqueness constraint makes processing idempotent. Together,
-these mechanisms provide at-least-once delivery without duplicate database rows.
+Open `consumer/service.py`. Kafka auto-commit is disabled and offsets are committed only after
+database writes. Existing readings are filtered before feature calculation, rolling state is
+restored on startup, and tentative state is applied only after a successful transaction. Invalid
+payloads are persisted with an outbox event so Kafka DLQ publication can be retried safely.
 
 ### 2:45-3:30 - Machine learning
 
@@ -64,15 +65,17 @@ Open Swagger and execute `/health` or `/metrics/pipeline`. The project has unit,
 statistical, and Docker integration coverage. The data is synthetic, so model metrics validate the
 controlled pipeline behavior rather than production accuracy on real equipment.
 
-Potential extensions include Kafka partitioning, rolling-state restoration, Alembic migrations,
-authentication, external secrets, and cloud deployment.
+Potential extensions include Kafka partitioning, authentication, external secrets, automated
+backup and retention policies, and cloud deployment.
 
 ## Useful verification commands
 
 ```bash
 docker compose logs --tail 20 consumer monitoring
+docker compose logs migrate
 docker compose exec postgres psql -U streamguard -c "select count(*) from readings"
 docker compose exec postgres psql -U streamguard -c "select count(*) from dlq_events"
+docker compose exec postgres psql -U streamguard -c "select version_num from alembic_version"
 python -m pytest -q
 ```
 

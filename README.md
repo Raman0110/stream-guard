@@ -161,7 +161,8 @@ consumer/
   main.py                process composition and model loading
   service.py             Kafka batch orchestration and offset commits
   processing.py          message validation
-  db.py                  transactional readings, predictions, and DLQ writes
+  db.py                  transactional readings, predictions, DLQ, and outbox writes
+  outbox.py              retryable Kafka publication for persisted dead letters
 ml/
   train.py               training dataset, evaluation, and artifact generation
   features.py            per-sensor rolling feature calculation
@@ -176,6 +177,7 @@ api/
   dependencies.py        database and model dependencies
   queries.py             shared SQL query builders
   routers/               system, reading, metric, and prediction endpoints
+migrations/              versioned Alembic database schema changes
 dashboard/
   app.py                 page composition and live refresh
   client.py              typed FastAPI client
@@ -198,7 +200,11 @@ The consumer uses at-least-once processing:
 - A batch is written to PostgreSQL before its offset is committed.
 - Readings and their predictions are stored in one transaction.
 - A unique `(sensor_id, timestamp)` constraint makes redelivery idempotent.
-- Invalid events are retained in both the Kafka dead-letter topic and PostgreSQL.
+- Known duplicates are removed before rolling features and model scores are calculated.
+- Rolling windows are restored from PostgreSQL on startup and are only advanced after a successful
+  transaction.
+- Invalid events and their outbox records are stored in one transaction; a retrying publisher then
+  delivers them to the Kafka dead-letter topic.
 
 If the consumer crashes after a database write but before committing its offset, Kafka redelivers the
 message. PostgreSQL safely ignores the duplicate while preserving the original prediction.
@@ -211,6 +217,14 @@ Create the local environment file and start the complete stack:
 cp .env.example .env
 # Set POSTGRES_PASSWORD in .env
 docker compose up -d --build
+```
+
+Compose runs `alembic upgrade head` as a one-shot migration service before the API, consumer, and
+monitoring worker start. The migration container should finish with exit code `0`:
+
+```bash
+docker compose ps -a
+docker compose logs migrate
 ```
 
 Open:
@@ -332,6 +346,25 @@ baseline. A feature is marked as drifted when either:
 
 Results are written to the `drift_metrics` table and served through `/metrics/drift`.
 
+## Database migrations
+
+Alembic owns the PostgreSQL schema; application startup checks connectivity but never creates or
+changes tables. The initial revision creates the storage tables and indexes used by the API,
+consumer, outbox publisher, and monitoring queries.
+
+Connection pools validate borrowed connections and recycle long-lived connections. Their size,
+overflow, checkout timeout, and recycle interval are configurable with `DB_POOL_SIZE`,
+`DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS`, and `DB_POOL_RECYCLE_SECONDS`.
+
+Apply all pending revisions without restarting the whole stack:
+
+```bash
+make migrate
+```
+
+For a new schema change, update the SQLAlchemy metadata in `common/tables.py`, add a revision under
+`migrations/versions/`, and test both a clean database and an upgrade of an existing database.
+
 ## Results
 
 All numbers come from a single development machine (Windows 11, 12 logical CPUs) running the whole
@@ -433,14 +466,13 @@ back to back). The trade-off is more, smaller database transactions at low event
 
 ### Known limitations
 
-- **Rolling windows live in memory.** After a consumer restart, each sensor's first few readings
-  are scored on a partial window.
-- **Dead letters can be duplicated.** If the consumer crashes mid-batch, a malformed message may be
-  written to the dead-letter topic and table twice; only valid readings are de-duplicated.
 - **Single partition, single consumer.** Scaling out would need more partitions and a shared or
   rebuilt rolling-feature state.
-- **No migrations, authentication, or external secrets.** Tables are created at startup and
-  credentials come from environment variables; this is a local portfolio system.
+- **No authentication or external secret manager.** Credentials come from environment variables;
+  deployments should use a managed secret store and protect the API and dashboard.
+- **Outbox delivery is at least once.** A crash after Kafka confirms a dead letter but before its
+  outbox row is marked published can produce a duplicate Kafka dead-letter message. Consumers of
+  that topic should de-duplicate using the outbox event key.
 - **Synthetic data only.** Evaluation, thresholds, and drift behaviour are measured on simulator
   output; real equipment would need re-validation.
 - **Load results are single-machine.** Throughput and latency depend on the host and on Docker
@@ -458,7 +490,8 @@ make lint
 make test
 ```
 
-Other targets: `make up` / `make down` (stack), `make train` (retrain the model),
+Other targets: `make up` / `make down` (stack), `make migrate` (apply database revisions),
+`make train` (retrain the model),
 `make demo` / `make demo-reset` (guided demo), `make load-test` (latency and throughput).
 
 The test suite covers simulation, schemas, rolling features, model training and scoring, consumer

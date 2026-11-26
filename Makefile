@@ -1,4 +1,4 @@
-.PHONY: up down train test lint scenario demo demo-reset load-test
+.PHONY: up down migrate train test lint scenario demo demo-reset load-test
 
 up:
 	docker compose up -d --build
@@ -10,6 +10,9 @@ scenario:
 
 down:
 	docker compose down
+
+migrate:
+	docker compose run --rm migrate
 
 train:
 	python -m ml.train

@@ -20,7 +20,9 @@ NOW = datetime.now(UTC)
 @pytest.fixture(scope="module")
 def engine():
     with PostgresContainer("postgres:16-alpine") as pg:
-        yield tables.connect(pg.get_connection_url())
+        database = tables.connect(pg.get_connection_url())
+        tables.metadata.create_all(database)
+        yield database
 
 
 @pytest.fixture(scope="module")

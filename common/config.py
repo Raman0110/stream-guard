@@ -6,6 +6,7 @@ so defaults and variable names live in exactly one place.
 
 import os
 from dataclasses import dataclass
+from urllib.parse import quote
 
 
 @dataclass(frozen=True)
@@ -28,13 +29,18 @@ class Settings:
     baseline_features_path: str = "models/baseline_features.csv"
     drift_window_size: int = 1000
     drift_check_interval_seconds: float = 30.0
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout_seconds: float = 30.0
+    db_pool_recycle_seconds: int = 1800
 
     @property
     def database_url(self) -> str:
         """SQLAlchemy connection URL built from the Postgres settings."""
         return (
-            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"postgresql+psycopg2://{quote(self.postgres_user, safe='')}:"
+            f"{quote(self.postgres_password, safe='')}@{self.postgres_host}:{self.postgres_port}/"
+            f"?dbname={quote(self.postgres_db, safe='')}"
         )
 
 
@@ -61,4 +67,8 @@ def load_settings() -> Settings:
         baseline_features_path=env.get("BASELINE_FEATURES_PATH", "models/baseline_features.csv"),
         drift_window_size=int(env.get("DRIFT_WINDOW_SIZE", "1000")),
         drift_check_interval_seconds=float(env.get("DRIFT_CHECK_INTERVAL_SECONDS", "30")),
+        db_pool_size=int(env.get("DB_POOL_SIZE", "5")),
+        db_max_overflow=int(env.get("DB_MAX_OVERFLOW", "10")),
+        db_pool_timeout_seconds=float(env.get("DB_POOL_TIMEOUT_SECONDS", "30")),
+        db_pool_recycle_seconds=int(env.get("DB_POOL_RECYCLE_SECONDS", "1800")),
     )

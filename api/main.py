@@ -10,7 +10,7 @@ from sqlalchemy import Engine
 from api.routers import metrics, prediction, readings, system
 from common.config import load_settings
 from common.logging_setup import setup_logging
-from common.tables import connect
+from common.tables import connect_from_settings
 from ml.model import Scorer, load_artifact
 
 
@@ -19,12 +19,18 @@ def create_app(engine: Engine | None = None, scorer: Scorer | None = None) -> Fa
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if engine is None or scorer is None:
-            setup_logging()
-            cfg = load_settings()
-            app.state.engine = connect(cfg.database_url)
-            app.state.scorer = Scorer(load_artifact(Path(cfg.model_path)))
-        yield
+        created_engine: Engine | None = None
+        try:
+            if engine is None or scorer is None:
+                setup_logging()
+                cfg = load_settings()
+                created_engine = connect_from_settings(cfg)
+                app.state.engine = created_engine
+                app.state.scorer = Scorer(load_artifact(Path(cfg.model_path)))
+            yield
+        finally:
+            if created_engine is not None:
+                created_engine.dispose()
 
     app = FastAPI(
         title="StreamGuard API",
