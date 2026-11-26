@@ -21,6 +21,23 @@ class RollingFeatures:
         self.window = window
         self._buffers: dict[str, deque[tuple[float, float, float]]] = {}
 
+    def clone(self) -> "RollingFeatures":
+        """Return an independent copy for tentative batch processing.
+
+        Consumers can score against the copy and publish it only after durable storage succeeds.
+        That keeps retries from advancing the live window twice.
+        """
+        cloned = RollingFeatures(self.window)
+        cloned._buffers = {
+            sensor_id: deque(values, maxlen=self.window)
+            for sensor_id, values in self._buffers.items()
+        }
+        return cloned
+
+    def snapshot(self) -> dict[str, tuple[tuple[float, float, float], ...]]:
+        """Expose an immutable state snapshot for checkpointing and verification."""
+        return {sensor_id: tuple(values) for sensor_id, values in self._buffers.items()}
+
     def update(
         self, sensor_id: str, temperature: float, humidity: float, vibration: float
     ) -> list[float]:

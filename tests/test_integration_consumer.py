@@ -73,10 +73,15 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
                 r = c.execute(select(func.count()).select_from(tables.readings)).scalar_one()
                 d = c.execute(select(func.count()).select_from(tables.dlq_events)).scalar_one()
                 p = c.execute(select(func.count()).select_from(tables.predictions)).scalar_one()
-            return r, d, p
+                o = c.execute(
+                    select(func.count())
+                    .select_from(tables.outbox_events)
+                    .where(tables.outbox_events.c.published_at.is_not(None))
+                ).scalar_one()
+            return r, d, p, o
 
         try:
-            assert wait_for(lambda: counts() == (3, 1, 3))
+            assert wait_for(lambda: counts() == (3, 1, 3, 1))
         finally:
             service.stop()
             thread.join(timeout=15)
@@ -84,4 +89,5 @@ def test_consumer_stores_valid_dedups_and_dead_letters():
             3,
             1,
             3,
-        )  # 4 valid messages, 1 duplicate skipped, 1 prediction per stored reading
+            1,
+        )  # duplicate skipped, one prediction per reading, invalid event published from outbox

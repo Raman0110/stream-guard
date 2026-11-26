@@ -34,7 +34,8 @@ def client(engine, scorer):
     with engine.begin() as conn:  # every test starts from empty tables
         conn.execute(
             text(
-                "TRUNCATE readings, predictions, dlq_events, drift_metrics RESTART IDENTITY CASCADE"
+                "TRUNCATE readings, predictions, dlq_events, outbox_events, drift_metrics "
+                "RESTART IDENTITY CASCADE"
             )
         )
     with TestClient(create_app(engine, scorer)) as c:

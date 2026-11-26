@@ -40,3 +40,14 @@ def test_sensors_have_independent_windows():
 
 def test_default_window_constant():
     assert RollingFeatures().window == WINDOW
+
+
+def test_clone_can_advance_without_mutating_original():
+    original = RollingFeatures(window=3)
+    original.update("s1", 10.0, 20.0, 0.1)
+    cloned = original.clone()
+
+    cloned.update("s1", 30.0, 40.0, 0.3)
+
+    assert original.snapshot() == {"s1": ((10.0, 20.0, 0.1),)}
+    assert cloned.snapshot() == {"s1": ((10.0, 20.0, 0.1), (30.0, 40.0, 0.3))}

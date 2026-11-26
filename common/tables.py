@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Table,
@@ -58,6 +59,22 @@ dlq_events = Table(
     Column("received_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
     Column("raw_payload", Text, nullable=False),
     Column("error", Text, nullable=False),
+)
+
+
+# Durable messages waiting to be published to Kafka. Writing this row in the same transaction as
+# the DLQ record lets the input offset be committed without risking loss when Kafka is unavailable.
+outbox_events = Table(
+    "outbox_events",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("topic", String(255), nullable=False),
+    Column("message_key", LargeBinary, nullable=True),
+    Column("payload", LargeBinary, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
+    Column("published_at", DateTime(timezone=True), nullable=True, index=True),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("last_error", Text, nullable=True),
 )
 
 
