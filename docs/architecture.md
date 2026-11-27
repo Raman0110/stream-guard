@@ -80,5 +80,6 @@ workers, while application startup only verifies connectivity. Operational index
 reading, anomaly, DLQ, outbox, and latest-drift queries. Shared pool settings control maximum
 connections, checkout timeouts, and connection recycling. A separate maintenance job deletes
 expired rows in bounded transactions, while backup tooling creates and validates PostgreSQL custom
-archives. Production deployment still needs scheduling, encrypted off-site backup storage,
-external secrets, authentication, and multi-partition Kafka.
+archives. API-key authentication protects data and scoring routes, with the dashboard receiving its
+credential as a read-only Docker secret. Production deployment still needs scheduling, encrypted
+off-site backup storage, a managed secret store, TLS/OIDC authorization, and multi-partition Kafka.

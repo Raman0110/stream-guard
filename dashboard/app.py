@@ -3,6 +3,7 @@
 import os
 from datetime import UTC, datetime
 from html import escape
+from pathlib import Path
 from typing import cast
 
 import pandas as pd
@@ -22,8 +23,17 @@ from dashboard.theme import configure_page
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 REFRESH_SECONDS = int(os.getenv("DASHBOARD_REFRESH_SECONDS", "2"))
 
+
+def load_api_key() -> str:
+    direct = os.getenv("API_KEY", "").strip()
+    key_file = os.getenv("API_KEY_FILE", "").strip()
+    if key_file:
+        return Path(key_file).read_text(encoding="utf-8").strip()
+    return direct
+
+
 configure_page()
-api = StreamGuardAPI(API_URL)
+api = StreamGuardAPI(API_URL, api_key=load_api_key())
 
 st.markdown(
     """

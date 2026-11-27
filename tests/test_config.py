@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy.engine import make_url
 
 from common.config import load_settings
@@ -19,6 +20,9 @@ def test_defaults(monkeypatch):
         "DRIFT_RETENTION_DAYS",
         "OUTBOX_RETENTION_DAYS",
         "RETENTION_BATCH_SIZE",
+        "API_AUTH_ENABLED",
+        "API_KEY",
+        "API_KEY_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
     s = load_settings()
@@ -36,6 +40,8 @@ def test_defaults(monkeypatch):
     assert s.drift_retention_days == 90
     assert s.outbox_retention_days == 7
     assert s.retention_batch_size == 10_000
+    assert s.api_auth_enabled is False
+    assert s.api_key == ""
 
 
 def test_env_override_and_database_url(monkeypatch):
@@ -94,3 +100,34 @@ def test_retention_settings(monkeypatch):
     assert settings.drift_retention_days == 180
     assert settings.outbox_retention_days == 14
     assert settings.retention_batch_size == 2500
+
+
+def test_api_key_loaded_from_secret_file(monkeypatch, tmp_path):
+    secret_file = tmp_path / "api_key"
+    secret_file.write_text("a" * 48 + "\n", encoding="utf-8")
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    monkeypatch.setenv("API_KEY_FILE", str(secret_file))
+    monkeypatch.delenv("API_KEY", raising=False)
+
+    settings = load_settings()
+
+    assert settings.api_auth_enabled is True
+    assert settings.api_key == "a" * 48
+
+
+def test_api_key_sources_are_mutually_exclusive(monkeypatch, tmp_path):
+    secret_file = tmp_path / "api_key"
+    secret_file.write_text("file-key", encoding="utf-8")
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", "direct-key")
+    monkeypatch.setenv("API_KEY_FILE", str(secret_file))
+
+    with pytest.raises(ValueError, match="only one"):
+        load_settings()
+
+
+def test_invalid_auth_boolean_is_rejected(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "sometimes")
+
+    with pytest.raises(ValueError, match="invalid boolean"):
+        load_settings()

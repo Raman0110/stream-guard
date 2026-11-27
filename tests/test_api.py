@@ -15,6 +15,7 @@ from ml.model import Scorer, train_model
 pytestmark = pytest.mark.integration  # needs Docker for the Postgres container
 
 NOW = datetime.now(UTC)
+TEST_API_KEY = "test-api-key-" + "x" * 32
 
 
 @pytest.fixture(scope="module")
@@ -92,6 +93,54 @@ def test_openapi_docs_enabled(client):
     for p in ("/health", "/readings/recent", "/anomalies", "/metrics/pipeline",
               "/metrics/drift", "/predict"):  # fmt: skip
         assert p in paths
+
+
+def test_health_remains_available_without_authentication(engine, scorer):
+    with TestClient(
+        create_app(engine, scorer, auth_enabled=True, api_key=TEST_API_KEY)
+    ) as protected_client:
+        assert protected_client.get("/health").status_code == 200
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("get", "/readings/recent"),
+        ("get", "/anomalies"),
+        ("get", "/metrics/pipeline"),
+        ("get", "/metrics/drift"),
+        ("post", "/predict"),
+    ],
+)
+def test_protected_routes_reject_missing_key(engine, scorer, method, path):
+    with TestClient(
+        create_app(engine, scorer, auth_enabled=True, api_key=TEST_API_KEY)
+    ) as protected_client:
+        response = getattr(protected_client, method)(path)
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"] == "ApiKey"
+
+
+def test_protected_route_accepts_valid_key(engine, scorer):
+    with TestClient(
+        create_app(engine, scorer, auth_enabled=True, api_key=TEST_API_KEY)
+    ) as protected_client:
+        response = protected_client.get("/readings/recent", headers={"X-API-Key": TEST_API_KEY})
+        assert response.status_code == 200
+
+
+def test_protected_route_rejects_wrong_key(engine, scorer):
+    with TestClient(
+        create_app(engine, scorer, auth_enabled=True, api_key=TEST_API_KEY)
+    ) as protected_client:
+        response = protected_client.get("/readings/recent", headers={"X-API-Key": "x" * 48})
+        assert response.status_code == 401
+
+
+def test_authentication_rejects_weak_config(engine, scorer):
+    with pytest.raises(RuntimeError, match="at least 32"):
+        with TestClient(create_app(engine, scorer, auth_enabled=True, api_key="short")):
+            pass
 
 
 # ---------- /readings/recent ----------

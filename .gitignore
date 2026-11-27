@@ -226,3 +226,7 @@ models/*
 # Database backup archives are local operational artifacts.
 backups/*
 !backups/.gitkeep
+
+# Local runtime secrets must never be committed.
+.secrets/*
+!.secrets/.gitkeep

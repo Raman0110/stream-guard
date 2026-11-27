@@ -102,7 +102,12 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
-    environment: *app-env
+    environment:
+      <<: *app-env
+      API_AUTH_ENABLED: ${API_AUTH_ENABLED:-true}
+      API_KEY_FILE: /run/secrets/api_key
+    secrets:
+      - api_key
     ports:
       - "8000:8000"
     volumes:
@@ -136,7 +141,10 @@ services:
       dockerfile: dashboard/Dockerfile
     environment:
       API_URL: http://api:8000
+      API_KEY_FILE: /run/secrets/api_key
       DASHBOARD_REFRESH_SECONDS: 2
+    secrets:
+      - api_key
     ports:
       - "8501:8501"
     depends_on:
@@ -161,3 +169,7 @@ services:
 
 volumes:
   pgdata:
+
+secrets:
+  api_key:
+    file: ${API_KEY_FILE:-./.secrets/api_key}

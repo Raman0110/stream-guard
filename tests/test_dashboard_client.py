@@ -10,7 +10,9 @@ def test_get_builds_url_and_query() -> None:
         result = StreamGuardAPI("http://api:8000/").get("/health", limit=5)
 
     assert result == {"status": "ok"}
-    get.assert_called_once_with("http://api:8000/health", params={"limit": 5}, timeout=3.0)
+    get.assert_called_once_with(
+        "http://api:8000/health", params={"limit": 5}, headers={}, timeout=3.0
+    )
     response.raise_for_status.assert_called_once()
 
 
@@ -22,7 +24,7 @@ def test_post_sends_json_payload() -> None:
         result = StreamGuardAPI("http://api:8000").post("/predict", payload)
 
     assert result == {"is_anomaly": True}
-    post.assert_called_once_with("http://api:8000/predict", json=payload, timeout=3.0)
+    post.assert_called_once_with("http://api:8000/predict", json=payload, headers={}, timeout=3.0)
     response.raise_for_status.assert_called_once()
 
 
@@ -36,3 +38,17 @@ def test_endpoint_helpers_use_expected_paths() -> None:
     assert get.call_args_list[0].kwargs == {"limit": 250}
     assert get.call_args_list[1].args == ("/anomalies",)
     assert get.call_args_list[1].kwargs == {"limit": 20}
+
+
+def test_api_key_is_sent_without_leaking_into_url() -> None:
+    response = Mock()
+    response.json.return_value = []
+    with patch("dashboard.client.requests.get", return_value=response) as get:
+        StreamGuardAPI("http://api:8000", api_key="secret-key").get("/readings/recent")
+
+    get.assert_called_once_with(
+        "http://api:8000/readings/recent",
+        params={},
+        headers={"X-API-Key": "secret-key"},
+        timeout=3.0,
+    )

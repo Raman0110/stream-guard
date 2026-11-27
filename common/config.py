@@ -6,6 +6,7 @@ so defaults and variable names live in exactly one place.
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import quote
 
 
@@ -38,6 +39,8 @@ class Settings:
     drift_retention_days: int = 90
     outbox_retention_days: int = 7
     retention_batch_size: int = 10_000
+    api_auth_enabled: bool = False
+    api_key: str = ""
 
     @property
     def database_url(self) -> str:
@@ -52,6 +55,7 @@ class Settings:
 def load_settings() -> Settings:
     """Build Settings from the current environment (re-read on every call)."""
     env = os.environ
+    auth_enabled = _as_bool(env.get("API_AUTH_ENABLED", "false"))
     return Settings(
         kafka_bootstrap_servers=env.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092"),
         kafka_topic=env.get("KAFKA_TOPIC", "sensor-readings"),
@@ -81,4 +85,28 @@ def load_settings() -> Settings:
         drift_retention_days=int(env.get("DRIFT_RETENTION_DAYS", "90")),
         outbox_retention_days=int(env.get("OUTBOX_RETENTION_DAYS", "7")),
         retention_batch_size=int(env.get("RETENTION_BATCH_SIZE", "10000")),
+        api_auth_enabled=auth_enabled,
+        api_key=_load_api_key(env) if auth_enabled else "",
     )
+
+
+def _as_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"invalid boolean value: {value!r}")
+
+
+def _load_api_key(env: os._Environ[str]) -> str:
+    direct = env.get("API_KEY", "").strip()
+    key_file = env.get("API_KEY_FILE", "").strip()
+    if direct and key_file:
+        raise ValueError("configure only one of API_KEY or API_KEY_FILE")
+    if key_file:
+        try:
+            return Path(key_file).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise ValueError(f"cannot read API key file: {key_file}") from exc
+    return direct

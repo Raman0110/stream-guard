@@ -63,17 +63,28 @@ class PredictResponse(TypedDict):
 
 
 class StreamGuardAPI:
-    def __init__(self, base_url: str, timeout: float = 3.0) -> None:
+    def __init__(self, base_url: str, timeout: float = 3.0, api_key: str = "") -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.headers = {"X-API-Key": api_key} if api_key else {}
 
     def get(self, path: str, **params: QueryValue) -> Any:
-        response = requests.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
+        response = requests.get(
+            f"{self.base_url}{path}",
+            params=params,
+            headers=self.headers,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return response.json()
 
     def post(self, path: str, payload: Mapping[str, JsonValue]) -> Any:
-        response = requests.post(f"{self.base_url}{path}", json=payload, timeout=self.timeout)
+        response = requests.post(
+            f"{self.base_url}{path}",
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return response.json()
 

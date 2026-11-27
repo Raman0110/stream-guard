@@ -1,4 +1,7 @@
-.PHONY: up down migrate retention-preview retention backup train test lint scenario demo demo-reset load-test
+.PHONY: secret up down migrate retention-preview retention backup train test lint scenario demo demo-reset load-test
+
+secret:
+	python -m scripts.generate_api_key
 
 up:
 	docker compose up -d --build

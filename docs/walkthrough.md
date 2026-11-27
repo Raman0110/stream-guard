@@ -65,8 +65,8 @@ Open Swagger and execute `/health` or `/metrics/pipeline`. The project has unit,
 statistical, and Docker integration coverage. The data is synthetic, so model metrics validate the
 controlled pipeline behavior rather than production accuracy on real equipment.
 
-Potential extensions include Kafka partitioning, authentication, external secrets, automated
-backup and retention policies, and cloud deployment.
+Potential extensions include Kafka partitioning, user-level OIDC authorization, managed secrets,
+automated maintenance scheduling, TLS ingress, and cloud deployment.
 
 ## Useful verification commands
 

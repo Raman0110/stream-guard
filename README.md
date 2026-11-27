@@ -216,6 +216,7 @@ Create the local environment file and start the complete stack:
 ```bash
 cp .env.example .env
 # Set POSTGRES_PASSWORD in .env
+make secret
 docker compose up -d --build
 ```
 
@@ -332,8 +333,13 @@ Example prediction:
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "content-type: application/json" \
+  -H "X-API-Key: <value from .secrets/api_key>" \
   -d '{"sensor_id":"sensor-1","temperature":95,"humidity":50,"vibration":0.5}'
 ```
+
+All data, metric, and prediction endpoints require this header. The dashboard receives the same key
+as a read-only Docker secret. See [docs/security.md](docs/security.md) for setup, rotation, and the
+remaining production security boundary.
 
 ## Drift monitoring
 
@@ -472,8 +478,9 @@ back to back). The trade-off is more, smaller database transactions at low event
 
 - **Single partition, single consumer.** Scaling out would need more partitions and a shared or
   rebuilt rolling-feature state.
-- **No authentication or external secret manager.** Credentials come from environment variables;
-  deployments should use a managed secret store and protect the API and dashboard.
+- **API-key authentication is service-level, not user-level.** It does not provide individual
+  identities, roles, browser login, or audit attribution; an internet-facing deployment should use
+  TLS, rate limiting, network policy, and OIDC/OAuth2 authorization.
 - **Outbox delivery is at least once.** A crash after Kafka confirms a dead letter but before its
   outbox row is marked published can produce a duplicate Kafka dead-letter message. Consumers of
   that topic should de-duplicate using the outbox event key.
@@ -494,7 +501,8 @@ make lint
 make test
 ```
 
-Other targets: `make up` / `make down` (stack), `make migrate` (apply database revisions),
+Other targets: `make secret` (generate the local API credential), `make up` / `make down` (stack),
+`make migrate` (apply database revisions),
 `make retention-preview` / `make retention` (data lifecycle), `make backup` (verified database
 archive), `make train` (retrain the model),
 `make demo` / `make demo-reset` (guided demo), `make load-test` (latency and throughput).
