@@ -1,4 +1,4 @@
-.PHONY: up down migrate train test lint scenario demo demo-reset load-test
+.PHONY: up down migrate retention-preview retention backup train test lint scenario demo demo-reset load-test
 
 up:
 	docker compose up -d --build
@@ -13,6 +13,15 @@ down:
 
 migrate:
 	docker compose run --rm migrate
+
+retention-preview:
+	docker compose run --rm retention python -m scripts.retention
+
+retention:
+	docker compose run --rm retention
+
+backup:
+	python -m scripts.database backup
 
 train:
 	python -m ml.train

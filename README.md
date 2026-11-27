@@ -365,6 +365,10 @@ make migrate
 For a new schema change, update the SQLAlchemy metadata in `common/tables.py`, add a revision under
 `migrations/versions/`, and test both a clean database and an upgrade of an existing database.
 
+Retention cleanup, verified backups, and guarded restore procedures are documented in
+[docs/database-operations.md](docs/database-operations.md). Cleanup is an explicit bounded
+maintenance job; it never deletes unpublished outbox events.
+
 ## Results
 
 All numbers come from a single development machine (Windows 11, 12 logical CPUs) running the whole
@@ -491,7 +495,8 @@ make test
 ```
 
 Other targets: `make up` / `make down` (stack), `make migrate` (apply database revisions),
-`make train` (retrain the model),
+`make retention-preview` / `make retention` (data lifecycle), `make backup` (verified database
+archive), `make train` (retrain the model),
 `make demo` / `make demo-reset` (guided demo), `make load-test` (latency and throughput).
 
 The test suite covers simulation, schemas, rolling features, model training and scoring, consumer

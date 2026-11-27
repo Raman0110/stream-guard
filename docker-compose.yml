@@ -9,6 +9,11 @@ x-app-env: &app-env
   DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
   DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-30}
   DB_POOL_RECYCLE_SECONDS: ${DB_POOL_RECYCLE_SECONDS:-1800}
+  READINGS_RETENTION_DAYS: ${READINGS_RETENTION_DAYS:-90}
+  DLQ_RETENTION_DAYS: ${DLQ_RETENTION_DAYS:-30}
+  DRIFT_RETENTION_DAYS: ${DRIFT_RETENTION_DAYS:-90}
+  OUTBOX_RETENTION_DAYS: ${OUTBOX_RETENTION_DAYS:-7}
+  RETENTION_BATCH_SIZE: ${RETENTION_BATCH_SIZE:-10000}
   MODEL_PATH: /app/models/model.joblib
 
 services:
@@ -55,6 +60,18 @@ services:
     environment: *app-env
     depends_on:
       postgres: {condition: service_healthy}
+    restart: "no"
+
+  retention:
+    profiles: ["maintenance"]
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: ["python", "-m", "scripts.retention", "--apply"]
+    environment: *app-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     restart: "no"
 
   # One-shot job: trains the model if none exists yet, then exits.

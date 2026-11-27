@@ -222,3 +222,7 @@ __marimo__/
 # trained model artifacts are rebuilt with `make train`
 models/*
 !models/.gitkeep
+
+# Database backup archives are local operational artifacts.
+backups/*
+!backups/.gitkeep

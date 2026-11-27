@@ -33,6 +33,11 @@ class Settings:
     db_max_overflow: int = 10
     db_pool_timeout_seconds: float = 30.0
     db_pool_recycle_seconds: int = 1800
+    readings_retention_days: int = 90
+    dlq_retention_days: int = 30
+    drift_retention_days: int = 90
+    outbox_retention_days: int = 7
+    retention_batch_size: int = 10_000
 
     @property
     def database_url(self) -> str:
@@ -71,4 +76,9 @@ def load_settings() -> Settings:
         db_max_overflow=int(env.get("DB_MAX_OVERFLOW", "10")),
         db_pool_timeout_seconds=float(env.get("DB_POOL_TIMEOUT_SECONDS", "30")),
         db_pool_recycle_seconds=int(env.get("DB_POOL_RECYCLE_SECONDS", "1800")),
+        readings_retention_days=int(env.get("READINGS_RETENTION_DAYS", "90")),
+        dlq_retention_days=int(env.get("DLQ_RETENTION_DAYS", "30")),
+        drift_retention_days=int(env.get("DRIFT_RETENTION_DAYS", "90")),
+        outbox_retention_days=int(env.get("OUTBOX_RETENTION_DAYS", "7")),
+        retention_batch_size=int(env.get("RETENTION_BATCH_SIZE", "10000")),
     )

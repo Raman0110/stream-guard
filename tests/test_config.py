@@ -14,6 +14,11 @@ def test_defaults(monkeypatch):
         "DB_MAX_OVERFLOW",
         "DB_POOL_TIMEOUT_SECONDS",
         "DB_POOL_RECYCLE_SECONDS",
+        "READINGS_RETENTION_DAYS",
+        "DLQ_RETENTION_DAYS",
+        "DRIFT_RETENTION_DAYS",
+        "OUTBOX_RETENTION_DAYS",
+        "RETENTION_BATCH_SIZE",
     ):
         monkeypatch.delenv(name, raising=False)
     s = load_settings()
@@ -26,6 +31,11 @@ def test_defaults(monkeypatch):
     assert s.db_max_overflow == 10
     assert s.db_pool_timeout_seconds == 30
     assert s.db_pool_recycle_seconds == 1800
+    assert s.readings_retention_days == 90
+    assert s.dlq_retention_days == 30
+    assert s.drift_retention_days == 90
+    assert s.outbox_retention_days == 7
+    assert s.retention_batch_size == 10_000
 
 
 def test_env_override_and_database_url(monkeypatch):
@@ -68,3 +78,19 @@ def test_database_pool_settings(monkeypatch):
     assert settings.db_max_overflow == 12
     assert settings.db_pool_timeout_seconds == 4.5
     assert settings.db_pool_recycle_seconds == 600
+
+
+def test_retention_settings(monkeypatch):
+    monkeypatch.setenv("READINGS_RETENTION_DAYS", "365")
+    monkeypatch.setenv("DLQ_RETENTION_DAYS", "60")
+    monkeypatch.setenv("DRIFT_RETENTION_DAYS", "180")
+    monkeypatch.setenv("OUTBOX_RETENTION_DAYS", "14")
+    monkeypatch.setenv("RETENTION_BATCH_SIZE", "2500")
+
+    settings = load_settings()
+
+    assert settings.readings_retention_days == 365
+    assert settings.dlq_retention_days == 60
+    assert settings.drift_retention_days == 180
+    assert settings.outbox_retention_days == 14
+    assert settings.retention_batch_size == 2500

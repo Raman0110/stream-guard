@@ -78,5 +78,7 @@ dashboard displays the overall state and detailed statistics.
 Alembic owns the schema. Compose runs the one-shot `migrate` service before database-dependent
 workers, while application startup only verifies connectivity. Operational indexes support recent
 reading, anomaly, DLQ, outbox, and latest-drift queries. Shared pool settings control maximum
-connections, checkout timeouts, and connection recycling. Remaining deployment work includes
-external secrets, authentication, backup and retention policies, and multi-partition Kafka.
+connections, checkout timeouts, and connection recycling. A separate maintenance job deletes
+expired rows in bounded transactions, while backup tooling creates and validates PostgreSQL custom
+archives. Production deployment still needs scheduling, encrypted off-site backup storage,
+external secrets, authentication, and multi-partition Kafka.
